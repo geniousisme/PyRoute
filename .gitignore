@@ -1,0 +1,8 @@
+.git/*
+*.py[cod]
+*.swp
+*.pdf
+*.txt
+.DS_Store
+reference/*
+*_copy.py
