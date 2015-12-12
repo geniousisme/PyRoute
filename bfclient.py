@@ -50,7 +50,8 @@ class BFClient(object):
         pass
 
     def close(self):
-        pass
+        print "%s:%s is leaving PyRoute..." % self.sock.getsockname()
+        sys.exit(0)
 
     def show_rt(self):
         pass
