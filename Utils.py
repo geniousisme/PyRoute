@@ -9,6 +9,7 @@ LINKUP   = "linkup"
 RTUPDATE = "rtupdate"
 SHOWRT   = "showrt"
 
+INF      = 2147483647
 BUFFSIZE = 4096
 
 localhost = socket.gethostbyname(socket.gethostname())
@@ -23,7 +24,7 @@ def key_to_addr(key):
 def addr_to_key(host, port):
     return "%s:%s" % (host, port)
 
-def init_client_socket(host, port):
+def init_socket(host, port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.bind((host, int(port)))
@@ -53,7 +54,7 @@ def argv_parser(argv):
             neighbor_ip   = argv.pop(0)
             neighbor_port = int(argv.pop(0))
             neighbor_cost = float(argv.pop(0))
-            neighbor_info = ':'.join([neighbor_ip, str(neighbor_port), str(neighbor_cost)])
+            neighbor_info = addr_to_key(neighbor_ip, neighbor_port) + '#' + str(neighbor_cost)
             if route_info.get("neighbors") is None:
                 route_info["neighbors"] = [neighbor_info]
             else:
@@ -63,4 +64,7 @@ def argv_parser(argv):
             sys.exit(1)
 
     return route_info
+
+def user_cmd_parser(cmd):
+    pass
 
