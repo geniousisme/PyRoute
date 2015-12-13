@@ -15,11 +15,11 @@ from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
 from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
-from Utils import argv_parser, user_cmd_parser, init_socket, localhost, key_to_addr, addr_to_key
+from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, key_to_addr, addr_to_key
 
 class BFClient(object):
     def __init__(self):
-        self.me_key = ""
+        self.me_addr = ""
         self.sock = None
         self.node_dict = {}
         self.timeout  = 0
@@ -55,7 +55,13 @@ class BFClient(object):
         self.close_bfclient()
 
     def show_rt(self):
-        pass
+        print now_time()
+        print "Distance vector list is:"
+        for addr, node in self.node_dict.iteritems():
+            if addr == self.me_addr:
+                continue
+            print "Destination = %s, Cost = %s, Link = %s\n" %                 \
+                                (addr_to_key(*addr), node['cost'], node['link'])
 
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
@@ -88,16 +94,16 @@ class BFClient(object):
         self.sock = init_socket(localhost, route_dict["port"])
         connections = [self.sock, sys.stdin]
         self.me_addr = self.sock.getsockname()
-        self.node_dict[self.me_key] = self.new_node(cost=0.0,                  \
-                                                    addr=self.me_addr,         \
-                                                    is_neighbor=False,         \
+        self.node_dict[self.me_addr] = self.new_node(cost=0.0,
+                                                    addr=self.me_addr,
+                                                    is_neighbor=False,
                                                     direct_dist=0.0)
 
         for neighbor_info_tuple in route_dict["neighbors"]:
             addr, cost = neighbor_info_tuple
-            self.node_dict[addr] = self.new_node(cost=cost,                    \
-                                                 addr=addr,                    \
-                                                 is_neighbor=True,             \
+            self.node_dict[addr] = self.new_node(cost=cost,
+                                                 addr=addr,
+                                                 is_neighbor=True,
                                                  direct_dist=cost)
         self.broadcast_costs()
         CountDownTimer(route_dict["timeout"], self.broadcast_costs).start()
@@ -112,13 +118,11 @@ class BFClient(object):
                                                       self.user_cmds)
                         cmd = update_dict['cmd']
                         if cmd == LINKUP or cmd == LINKDOWN:
-                            send_data = json.dumps({                           \
-                                                    'cmd': cmd,                \
-                                                    'payload':                 \
-                                                        update_dict['payload'] \
-                                                   })
+                            send_data = json.dumps({'cmd': cmd,
+                                                    'payload':
+                                                     update_dict['payload']})
                             self.sock.sendto(send_data, update_dict['addr'])
-                        self.user_cmds[cmd](*update_dict['addr'],              \
+                        self.user_cmds[cmd](*update_dict['addr'],
                                             **update_dict['payload'])
                     else:
                         recv_data, sender_addr = socket.recvfrom(BUFFSIZE)
