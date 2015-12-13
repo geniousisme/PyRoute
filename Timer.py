@@ -3,12 +3,17 @@ import time
 from threading import Thread, Timer
 
 class CountDownTimer(Thread):
-    def __init__(self, timeout, target):
-        Tread.__init__(self)
-        self.daemon = True
-        self.is_stopped = False
+    def __init__(self, interval, target):
+        Thread.__init__(self)
         self.target = target
-        self.timeout = timeout
+        self.interval = interval
+        self.daemon = True
+        self.stopped = False
+
+    def run(self):
+        while not self.stopped:
+            time.sleep(self.interval)
+            self.target()
 
 class ResetTimer(object):
     def __init__(self, timeout, func_ptr, args=None):
