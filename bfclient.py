@@ -3,6 +3,7 @@ rt: routing table
 To Do:
 Define your own exception with param(ex. cmd) return
 '''
+import copy
 import json
 import sys
 import time
@@ -15,11 +16,11 @@ from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
 from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
-from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, key_to_addr, addr_to_key
+from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, addr_to_key, key_to_addr, decode_node_info
 
 class BFClient(object):
     def __init__(self):
-        self.me_addr = ""
+        self.me_key = ""
         self.sock = None
         self.node_dict = {}
         self.timeout  = 0
@@ -57,32 +58,97 @@ class BFClient(object):
     def show_rt(self):
         print now_time()
         print "Distance vector list is:"
-        for addr, node in self.node_dict.iteritems():
-            if addr == self.me_addr:
+        for addr_key, node in self.node_dict.iteritems():
+            if addr_key == self.me_key:
                 continue
             print "Destination = %s, Cost = %s, Link = %s\n" %                 \
-                                (addr_to_key(*addr), node['cost'], node['link'])
+                            (addr_key, node['cost'], node['link'])
 
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
 
-    def new_node(self, cost, is_neighbor, neighbor_costs={},
-                                            direct_dist=INF, addr=()):
+    def generate_node(self, cost, is_neighbor,
+                                    costs={}, direct_dist=INF, addr_key=""):
         node = self.init_node()
         node["cost"] = cost
         node["is_neighbor"] = is_neighbor
-        node["neighbor_costs"] = neighbors if neighbor_costs                   \
-                                           else defaultdict(lambda: INF)
+        node["costs"] = costs if costs else defaultdict(lambda: INF)
         node["direct_dist"] = direct_dist
+        if is_neighbor:
+            node['link'] = addr_key
+            # make sure update_cmds use new timer to count
+            monitor = ResetTimer(
+                        interval=self.timeout,
+                        func_ptr=self.link_down,
+                        args=list(addr_key))
+            monitor.start()
+            node['watch_dog'] = monitor
         return node
 
-    def rt_update(self):
-        pass
+    def get_neighbors(self):
+        return {node_addr_key: node_info for node_addr_key, node_info          \
+                    in self.node_dict.iteritems() if node_info['is_neighbor']}
+
+    def rt_update(self, host, port, **kwargs):
+        costs = kwargs['costs']
+        addr_key = addr_to_key(host, port)
+        for node_addr_key in costs:
+            # not in the node_dict yet, add to the node_dict
+            if self.node_dict.get(node_addr_key) is None:
+                self.node_dict[node_addr_key] = self.init_node()
+
+        if self.node_dict[addr_key]['is_neighbor']:
+            # already neighbor, so just update node costs
+            node = self.node_dict[addr_key]
+            node['costs'] = costs
+            # restart watch_dog timer
+            node['watch_dog'].reset()
+        else:
+            print 'welcome new neighbor at %s with port %s !' % addr_key
+            del self.node_dict[addr_key]
+            self.node_dict[addr_key] = self.generate_node(
+                                cost=self.nodes[addr_key]['cost'],
+                                is_neighbor=True,
+                                direct_dist=kwargs['neighbor']['direct_dist'],
+                                costs=costs,
+                                addr_key=addr_key)
+        # run bellman ford
+        self.calculate_costs()
 
     def broadcast_costs(self):
-        pass
+        costs = {node_addr_key: node_info['cost'] for node_addr_key, node_info \
+                                              in self.node_dict.iteritems()}
+        packet  = {'cmd': RTUPDATE}
+        for neighbor_key, neighbor in self.get_neighbors().iteritems():
+            updated_costs = copy.deepcopy(costs)
+            for dest_addr, cost in costs.iteritems():
+                if dest_addr not in [self.me_key, neighbor_key] and            \
+                    self.node_dict[dest_addr]['link'] == neighbor_key:
+                        updated_costs[dest_addr] = INF # poisoned the cost!
+            packet['payload'] = {'costs': updated_costs,
+                                 'neighbor': {'direct_dist':
+                                                neighbor['direct_dist']}}
+            send_packet = json.dumps(packet)
+            self.sock.sendto(send_packet, key_to_addr(neighbor_key))
 
     def calculate_costs(self):
+        for dest_addr, dest_node in self.node_dict.iteritems():
+            if dest_addr == self.me_key:
+                continue
+            # iterate neighbors and search for min cost for destination
+            min_cost, next_hop = INF, ""
+            for neighbor_key, neighbor in self.get_neighbors().iteritems():
+                # distance = direct cost to neighbor + cost from neighbor to destination
+                if dest_addr in neighbor['costs']:
+                    dist = neighbor['direct_dist'] + neighbor['costs'][dest_addr]
+                    if dist < min_cost:
+                        min_cost = dist
+                        next_hop = neighbor_key
+            # set new estimated cost to node in the network
+            dest_node['cost'] = min_cost
+            dest_node['link'] = next_hop
+
+    def init_rt(self):
         pass
 
     def client_loop(self):
@@ -93,18 +159,23 @@ class BFClient(object):
 
         self.sock = init_socket(localhost, route_dict["port"])
         connections = [self.sock, sys.stdin]
-        self.me_addr = self.sock.getsockname()
-        self.node_dict[self.me_addr] = self.new_node(cost=0.0,
-                                                    addr=self.me_addr,
-                                                    is_neighbor=False,
-                                                    direct_dist=0.0)
+        self.me_key = addr_to_key(*self.sock.getsockname())
+        self.node_dict[self.me_key] = self.generate_node(cost=0.0,
+                                                         addr_key=self.me_key,
+                                                         is_neighbor=False,
+                                                         direct_dist=0.0)
 
-        for neighbor_info_tuple in route_dict["neighbors"]:
-            addr, cost = neighbor_info_tuple
-            self.node_dict[addr] = self.new_node(cost=cost,
-                                                 addr=addr,
-                                                 is_neighbor=True,
-                                                 direct_dist=cost)
+        for neighbor_info in route_dict["neighbors"]:
+            addr_key, cost = decode_node_info(neighbor_info)
+            self.node_dict[addr_key] = self.generate_node(cost=cost,
+                                                          addr_key=addr_key,
+                                                          is_neighbor=True,
+                                                          direct_dist=cost)
+        # print "node_dict"
+        # for node, node_info in self.node_dict.iteritems():
+        #     print node
+        #     print node_info
+        #     print
         self.broadcast_costs()
         CountDownTimer(route_dict["timeout"], self.broadcast_costs).start()
 
@@ -126,7 +197,7 @@ class BFClient(object):
                                             **update_dict['payload'])
                     else:
                         recv_data, sender_addr = socket.recvfrom(BUFFSIZE)
-                        recv_json  = json.dumps(recv_data)
+                        recv_json  = json.loads(recv_data)
                         cmd = recv_json['cmd']
                         payload    = recv_json['payload']
                         self.update_cmds[cmd](*sender_addr, **payload)

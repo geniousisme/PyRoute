@@ -53,7 +53,8 @@ def encode_node_info(ip, port, cost):
     return addr_to_key(ip, port) + '#' + str(cost)
 
 def decode_node_info(node_info_str):
-    return node_info_str.split('#')
+     addr_key, cost = node_info_str.split('#')
+     return addr_key, float(cost)
 
 def argv_parser(argv):
     argv = argv[1:]
@@ -74,13 +75,13 @@ def argv_parser(argv):
             neighbor_ip   = get_ip(argv.pop(0))
             neighbor_port = int(argv.pop(0))
             neighbor_cost = float(argv.pop(0))
-            neighbor_addr = (neighbor_ip, neighbor_port)
-            neighbor_info_tuple = (neighbor_addr, neighbor_cost)
+            neighbor_info = encode_node_info                                   \
+                                    (neighbor_ip, neighbor_port, neighbor_cost)
 
             if route_dict.get("neighbors") is None:
-                route_dict["neighbors"] = [neighbor_info_tuple]
+                route_dict["neighbors"] = [neighbor_info]
             else:
-                route_dict["neighbors"].append(neighbor_info_tuple)
+                route_dict["neighbors"].append(neighbor_info)
         except ValueError, err_msg:
             print "err code: %s, error message: %s\n" % err_msg
             sys.exit(1)
