@@ -15,7 +15,7 @@ from select      import select
 from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
-from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
+from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError, NotNeighborError
 from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, addr_to_key, key_to_addr, decode_node_info
 
 class BFClient(object):
@@ -46,11 +46,26 @@ class BFClient(object):
         self.sock.close()
         sys.exit(0)
 
+    def get_node(self, ip, port):
+        try:
+            addr_key = addr_to_key(ip, host)
+            return self.node_dict[addr_key]
+        except KeyError:
+            raise NotNeighborError
+
     def link_up(self):
         pass
 
-    def link_down(self):
-        pass
+    def link_down(self, ip, port, **kwargs):
+        try:
+            node = self.get_node(ip, port)
+            node['link_downed_dist'] = node['direct_dist']
+            node['direct_dist'] = INF
+            node['is_neighbor'] = False
+            node['watch_dog'].stop()
+            self.calculate_costs()
+        except NotNeighborError:
+            print "Node at %s with port %s is not the neighbor man!" % (ip, port)
 
     def close(self):
         self.close_bfclient()
@@ -61,7 +76,7 @@ class BFClient(object):
         for addr_key, node in self.node_dict.iteritems():
             if addr_key == self.me_key:
                 continue
-            print "Destination = %s, Cost = %s, Link = %s\n" %                 \
+            print "Destination = %s, Cost = %s, Link = (%s\n)" %               \
                             (addr_key, node['cost'], node['link'])
 
     def init_node(self):
@@ -89,9 +104,9 @@ class BFClient(object):
         return {node_addr_key: node_info for node_addr_key, node_info          \
                     in self.node_dict.iteritems() if node_info['is_neighbor']}
 
-    def rt_update(self, host, port, **kwargs):
+    def rt_update(self, ip, port, **kwargs):
         costs = kwargs['costs']
-        addr_key = addr_to_key(host, port)
+        addr_key = addr_to_key(ip, port)
         for node_addr_key in costs:
             # not in the node_dict yet, add to the node_dict
             if self.node_dict.get(node_addr_key) is None:
