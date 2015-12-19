@@ -83,12 +83,11 @@ class BFClient(object):
                 continue
             print "Destination = %s, Cost = %s, Link = (%s)" %               \
                             (addr_key, node['cost'], node['link'])
-        print
 
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
 
-    def generate_node(self, cost, is_neighbor,
+    def node_generator(self, cost, is_neighbor,
                                     costs={}, direct_dist=INF, addr_key=""):
         node = self.init_node()
         node["cost"] = cost
@@ -127,7 +126,7 @@ class BFClient(object):
         else:
             print 'welcome new neighbor at %s !' % addr_key
             del self.node_dict[addr_key]
-            self.node_dict[addr_key] = self.generate_node(
+            self.node_dict[addr_key] = self.node_generator(
                                 cost=self.nodes[addr_key]['cost'],
                                 is_neighbor=True,
                                 direct_dist=kwargs['neighbor']['direct_dist'],
@@ -181,14 +180,14 @@ class BFClient(object):
         self.sock = init_socket(localhost, route_dict["port"])
         connections = [self.sock, sys.stdin]
         self.me_key = addr_to_key(*self.sock.getsockname())
-        self.node_dict[self.me_key] = self.generate_node(cost=0.0,
+        self.node_dict[self.me_key] = self.node_generator(cost=0.0,
                                                          addr_key=self.me_key,
                                                          is_neighbor=False,
                                                          direct_dist=0.0)
 
         for neighbor_info in route_dict["neighbors"]:
             addr_key, cost = decode_node_info(neighbor_info)
-            self.node_dict[addr_key] = self.generate_node(cost=cost,
+            self.node_dict[addr_key] = self.node_generator(cost=cost,
                                                           addr_key=addr_key,
                                                           is_neighbor=True,
                                                           direct_dist=cost)
@@ -218,25 +217,29 @@ class BFClient(object):
                                             **update_dict['payload'])
                     else:
                         recv_data, sender_addr = socket.recvfrom(BUFFSIZE)
-                        recv_json  = json.loads(recv_data)
-                        cmd = recv_json['cmd']
-                        payload    = recv_json['payload']
+                        recv_json = json.loads(recv_data)
+                        cmd       = recv_json['cmd']
+                        payload   = recv_json['payload']
                         self.update_cmds[cmd](*sender_addr, **payload)
 
-            except KeyError, cmd:
-                    print "There is no '%s' command in update commands.\n" % cmd
+            except KeyError, err_msg:
+                    print "error message: %s" % err_msg
+            except ValueError, err_msg:
+                    print "error message: %s" % err_msg
             except NotEnoughParamsForCmdError:
                     print "not enough params for this command!"
             except NoInputCmdError:
-                    print "please type in something man\n"
+                    print "please type in something man"
             except NotUserCmdError:
                     print "It is not in builtin commands"
-                    print "builtin commands: %s, %s, %s, %s\n"                   \
+                    print "builtin commands: %s, %s, %s, %s"                   \
                                             % (LINKUP, LINKDOWN, SHOWRT, CLOSE)
             except NoParamsForCmdError:
-                    print "plz provide parameters for the command you want\n"
+                    print "plz provide parameters for the command you want"
             except KeyboardInterrupt, SystemExit:
                     self.close_bfclient()
+            finally:
+                print
 
     def run(self):
         self.client_loop()

@@ -106,7 +106,10 @@ def user_cmd_parser(input_cmd, builtin_cmds):
         if not input_cmd_list: # nothing left behind 'LINKUP' or 'LINKDOWN'
             raise NoParamsForCmdError(cmd)
          # will have ValueError if there is no ':' in the string, let bfclient handle the case
-        ip, port = input_cmd_list.pop(0), input_cmd_list.pop(0)
+        ip = input_cmd_list.pop(0)
+        if not input_cmd_list:
+            raise NotEnoughParamsForCmdError
+        port = input_cmd_list.pop(0)
         update_dict['addr'] = (get_ip(ip), int(port))
     update_dict['cmd'] = cmd
     return update_dict
