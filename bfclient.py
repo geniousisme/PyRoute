@@ -16,7 +16,9 @@ from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
 from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
-from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, addr_to_key, key_to_addr, decode_node_info
+from Utils import NotNeighborError, NotEnoughParamsForCmdError
+from Utils import argv_parser, user_cmd_parser, init_socket, localhost
+from Utils import now_time, addr_to_key, key_to_addr, decode_node_info
 
 class BFClient(object):
     def __init__(self):
@@ -44,13 +46,31 @@ class BFClient(object):
     def close_bfclient(self):
         print "%s:%s is leaving PyRoute..." % self.sock.getsockname()
         self.sock.close()
+        self.running = False
         sys.exit(0)
+
+    def get_node(self, ip, port):
+        try:
+            addr_key = addr_to_key(ip, port)
+            return self.node_dict[addr_key]
+        except KeyError:
+            raise NotNeighborError
 
     def link_up(self):
         pass
 
-    def link_down(self):
-        pass
+    def link_down(self, ip, port, **kwargs):
+        try:
+            node = self.get_node(ip, port)
+            node['link_downed_dist'] = node['direct_dist']
+            node['direct_dist'] = INF
+            node['is_neighbor'] = False
+            node['watch_dog'].stop()
+            self.calculate_costs()
+        except NotNeighborError:
+            print "Node at %s with port %s is not the neighbor man!" % (ip, port)
+        except TypeError:
+            print ip, port, kwargs
 
     def close(self):
         self.close_bfclient()
@@ -61,13 +81,13 @@ class BFClient(object):
         for addr_key, node in self.node_dict.iteritems():
             if addr_key == self.me_key:
                 continue
-            print "Destination = %s, Cost = %s, Link = %s\n" %                 \
+            print "Destination = %s, Cost = %s, Link = (%s)" %               \
                             (addr_key, node['cost'], node['link'])
 
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
 
-    def generate_node(self, cost, is_neighbor,
+    def node_generator(self, cost, is_neighbor,
                                     costs={}, direct_dist=INF, addr_key=""):
         node = self.init_node()
         node["cost"] = cost
@@ -80,7 +100,7 @@ class BFClient(object):
             monitor = ResetTimer(
                         interval=self.timeout,
                         func_ptr=self.link_down,
-                        args=list(addr_key))
+                        args=list(key_to_addr(addr_key)))
             monitor.start()
             node['watch_dog'] = monitor
         return node
@@ -89,9 +109,9 @@ class BFClient(object):
         return {node_addr_key: node_info for node_addr_key, node_info          \
                     in self.node_dict.iteritems() if node_info['is_neighbor']}
 
-    def rt_update(self, host, port, **kwargs):
+    def rt_update(self, ip, port, **kwargs):
         costs = kwargs['costs']
-        addr_key = addr_to_key(host, port)
+        addr_key = addr_to_key(ip, port)
         for node_addr_key in costs:
             # not in the node_dict yet, add to the node_dict
             if self.node_dict.get(node_addr_key) is None:
@@ -104,9 +124,9 @@ class BFClient(object):
             # restart watch_dog timer
             node['watch_dog'].reset()
         else:
-            print 'welcome new neighbor at %s with port %s !' % addr_key
+            print 'welcome new neighbor at %s !' % addr_key
             del self.node_dict[addr_key]
-            self.node_dict[addr_key] = self.generate_node(
+            self.node_dict[addr_key] = self.node_generator(
                                 cost=self.nodes[addr_key]['cost'],
                                 is_neighbor=True,
                                 direct_dist=kwargs['neighbor']['direct_dist'],
@@ -160,14 +180,14 @@ class BFClient(object):
         self.sock = init_socket(localhost, route_dict["port"])
         connections = [self.sock, sys.stdin]
         self.me_key = addr_to_key(*self.sock.getsockname())
-        self.node_dict[self.me_key] = self.generate_node(cost=0.0,
+        self.node_dict[self.me_key] = self.node_generator(cost=0.0,
                                                          addr_key=self.me_key,
                                                          is_neighbor=False,
                                                          direct_dist=0.0)
 
         for neighbor_info in route_dict["neighbors"]:
             addr_key, cost = decode_node_info(neighbor_info)
-            self.node_dict[addr_key] = self.generate_node(cost=cost,
+            self.node_dict[addr_key] = self.node_generator(cost=cost,
                                                           addr_key=addr_key,
                                                           is_neighbor=True,
                                                           direct_dist=cost)
@@ -197,25 +217,29 @@ class BFClient(object):
                                             **update_dict['payload'])
                     else:
                         recv_data, sender_addr = socket.recvfrom(BUFFSIZE)
-                        recv_json  = json.loads(recv_data)
-                        cmd = recv_json['cmd']
-                        payload    = recv_json['payload']
+                        recv_json = json.loads(recv_data)
+                        cmd       = recv_json['cmd']
+                        payload   = recv_json['payload']
                         self.update_cmds[cmd](*sender_addr, **payload)
 
-            except KeyError, cmd:
-                    print "There is no '%s' command in update commands.\n" % cmd
+            except KeyError, err_msg:
+                    print "error message: %s" % err_msg
             except ValueError, err_msg:
-                    print "err code: %s, error message: %s\n" % err_msg
+                    print "error message: %s" % err_msg
+            except NotEnoughParamsForCmdError:
+                    print "not enough params for this command!"
             except NoInputCmdError:
-                    print "please type in something man\n"
+                    print "please type in something man"
             except NotUserCmdError:
                     print "It is not in builtin commands"
-                    print "builtin commands: %s, %s, %s, %s\n"                   \
+                    print "builtin commands: %s, %s, %s, %s"                   \
                                             % (LINKUP, LINKDOWN, SHOWRT, CLOSE)
             except NoParamsForCmdError:
-                    print "plz provide parameters for the command you want\n"
+                    print "plz provide parameters for the command you want"
             except KeyboardInterrupt, SystemExit:
                     self.close_bfclient()
+            finally:
+                print
 
     def run(self):
         self.client_loop()
