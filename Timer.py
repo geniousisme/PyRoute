@@ -19,9 +19,9 @@ class ResetTimer(object):
     def __init__(self, interval, func_ptr, args=None):
         if args:
             assert type(args) is list
-        self.args = args
         self.func_ptr = func_ptr
         self.interval = interval
+        self.args = args
         self.coundown_timer = self.new_timer()
 
     def new_timer(self):

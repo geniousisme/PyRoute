@@ -9,7 +9,7 @@ LINKUP   = "linkup"
 RTUPDATE = "rtupdate"
 SHOWRT   = "showrt"
 
-INF      = 2147483647
+INF      = float('inf')
 BUFFSIZE = 4096
 
 localhost = socket.gethostbyname(socket.gethostname())
@@ -27,6 +27,9 @@ class NotUserCmdError(Exception):
 class NoParamsForCmdError(Exception):
     def __init__(self, cmd):
         self.cmd = cmd
+
+class NotEnoughParamsForCmdError(Exception):
+    pass
 
 def now_time():
     return datetime.now().strftime("%Y-%b-%d %I:%M:%S %p")
@@ -103,7 +106,7 @@ def user_cmd_parser(input_cmd, builtin_cmds):
         if not input_cmd_list: # nothing left behind 'LINKUP' or 'LINKDOWN'
             raise NoParamsForCmdError(cmd)
          # will have ValueError if there is no ':' in the string, let bfclient handle the case
-        ip, port = input_cmd_list.pop(0).split(':')
+        ip, port = input_cmd_list.pop(0), input_cmd_list.pop(0)
         update_dict['addr'] = (get_ip(ip), int(port))
     update_dict['cmd'] = cmd
     return update_dict

@@ -15,8 +15,10 @@ from select      import select
 from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
-from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError, NotNeighborError
-from Utils import argv_parser, user_cmd_parser, init_socket, localhost, now_time, addr_to_key, key_to_addr, decode_node_info
+from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
+from Utils import NotNeighborError, NotEnoughParamsForCmdError
+from Utils import argv_parser, user_cmd_parser, init_socket, localhost
+from Utils import now_time, addr_to_key, key_to_addr, decode_node_info
 
 class BFClient(object):
     def __init__(self):
@@ -44,11 +46,12 @@ class BFClient(object):
     def close_bfclient(self):
         print "%s:%s is leaving PyRoute..." % self.sock.getsockname()
         self.sock.close()
+        self.running = False
         sys.exit(0)
 
     def get_node(self, ip, port):
         try:
-            addr_key = addr_to_key(ip, host)
+            addr_key = addr_to_key(ip, port)
             return self.node_dict[addr_key]
         except KeyError:
             raise NotNeighborError
@@ -66,6 +69,8 @@ class BFClient(object):
             self.calculate_costs()
         except NotNeighborError:
             print "Node at %s with port %s is not the neighbor man!" % (ip, port)
+        except TypeError:
+            print ip, port, kwargs
 
     def close(self):
         self.close_bfclient()
@@ -76,8 +81,9 @@ class BFClient(object):
         for addr_key, node in self.node_dict.iteritems():
             if addr_key == self.me_key:
                 continue
-            print "Destination = %s, Cost = %s, Link = (%s\n)" %               \
+            print "Destination = %s, Cost = %s, Link = (%s)" %               \
                             (addr_key, node['cost'], node['link'])
+        print
 
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
@@ -95,7 +101,7 @@ class BFClient(object):
             monitor = ResetTimer(
                         interval=self.timeout,
                         func_ptr=self.link_down,
-                        args=list(addr_key))
+                        args=list(key_to_addr(addr_key)))
             monitor.start()
             node['watch_dog'] = monitor
         return node
@@ -119,7 +125,7 @@ class BFClient(object):
             # restart watch_dog timer
             node['watch_dog'].reset()
         else:
-            print 'welcome new neighbor at %s with port %s !' % addr_key
+            print 'welcome new neighbor at %s !' % addr_key
             del self.node_dict[addr_key]
             self.node_dict[addr_key] = self.generate_node(
                                 cost=self.nodes[addr_key]['cost'],
@@ -219,8 +225,8 @@ class BFClient(object):
 
             except KeyError, cmd:
                     print "There is no '%s' command in update commands.\n" % cmd
-            except ValueError, err_msg:
-                    print "err code: %s, error message: %s\n" % err_msg
+            except NotEnoughParamsForCmdError:
+                    print "not enough params for this command!"
             except NoInputCmdError:
                     print "please type in something man\n"
             except NotUserCmdError:
