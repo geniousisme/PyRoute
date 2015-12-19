@@ -1,7 +1,5 @@
 '''
 rt: routing table
-To Do:
-Define your own exception with param(ex. cmd) return
 '''
 import copy
 import json
@@ -16,7 +14,7 @@ from Timer import CountDownTimer, ResetTimer
 
 from Utils import LINKDOWN, LINKUP, SHOWRT, CLOSE, RTUPDATE, BUFFSIZE, INF
 from Utils import NoInputCmdError, NotUserCmdError, NoParamsForCmdError
-from Utils import NotNeighborError, NotEnoughParamsForCmdError
+from Utils import NoNodeError, NotEnoughParamsForCmdError
 from Utils import argv_parser, user_cmd_parser, init_socket, localhost
 from Utils import now_time, addr_to_key, key_to_addr, decode_node_info
 
@@ -54,10 +52,20 @@ class BFClient(object):
             addr_key = addr_to_key(ip, port)
             return self.node_dict[addr_key]
         except KeyError:
-            raise NotNeighborError
+            raise NoNodeError
 
-    def link_up(self):
-        pass
+    def link_up(self, ip, port, **kwargs):
+        try:
+            node = self.get_node(ip, port)
+            node['direct_dist'] = node['link_downed_dist']
+            del node['link_downed_dist']
+            node['is_neighbor'] = True
+            # run bellman-ford
+            self.calculate_costs()
+        except KeyError, err_msg:
+            print "error message: %s not in the nodes." % err_msg
+        except NoNodeError:
+            print "Node at %s:%s is not in the nodes man!" % (ip, port)
 
     def link_down(self, ip, port, **kwargs):
         try:
@@ -66,11 +74,10 @@ class BFClient(object):
             node['direct_dist'] = INF
             node['is_neighbor'] = False
             node['watch_dog'].stop()
+            # run bellman-ford
             self.calculate_costs()
-        except NotNeighborError:
-            print "Node at %s with port %s is not the neighbor man!" % (ip, port)
-        except TypeError:
-            print ip, port, kwargs
+        except NoNodeError:
+            print "Node at %s:%s is not in the nodes man!" % (ip, port)
 
     def close(self):
         self.close_bfclient()
@@ -81,9 +88,8 @@ class BFClient(object):
         for addr_key, node in self.node_dict.iteritems():
             if addr_key == self.me_key:
                 continue
-            print "Destination = %s, Cost = %s, Link = (%s)" %               \
+            print "Destination = %s, Cost = %s, Link = (%s)" %                 \
                             (addr_key, node['cost'], node['link'])
-
     def init_node(self):
         return {"cost": INF, "is_neighbor": False, "link": ""}
 
@@ -158,7 +164,8 @@ class BFClient(object):
             # iterate neighbors and search for min cost for destination
             min_cost, next_hop = INF, ""
             for neighbor_key, neighbor in self.get_neighbors().iteritems():
-                # distance = direct cost to neighbor + cost from neighbor to destination
+                # distance =
+                # direct cost to neighbor + cost from neighbor to destination
                 if dest_addr in neighbor['costs']:
                     dist = neighbor['direct_dist'] + neighbor['costs'][dest_addr]
                     if dist < min_cost:
@@ -181,21 +188,15 @@ class BFClient(object):
         connections = [self.sock, sys.stdin]
         self.me_key = addr_to_key(*self.sock.getsockname())
         self.node_dict[self.me_key] = self.node_generator(cost=0.0,
-                                                         addr_key=self.me_key,
-                                                         is_neighbor=False,
-                                                         direct_dist=0.0)
-
+                                                          addr_key=self.me_key,
+                                                          is_neighbor=False,
+                                                          direct_dist=0.0)
         for neighbor_info in route_dict["neighbors"]:
             addr_key, cost = decode_node_info(neighbor_info)
             self.node_dict[addr_key] = self.node_generator(cost=cost,
-                                                          addr_key=addr_key,
-                                                          is_neighbor=True,
-                                                          direct_dist=cost)
-        # print "node_dict"
-        # for node, node_info in self.node_dict.iteritems():
-        #     print node
-        #     print node_info
-        #     print
+                                                           addr_key=addr_key,
+                                                           is_neighbor=True,
+                                                           direct_dist=cost)
         self.broadcast_costs()
         CountDownTimer(route_dict["timeout"], self.broadcast_costs).start()
 
@@ -205,8 +206,8 @@ class BFClient(object):
                                                     select(connections, [], [])
                 for socket in read_sockets:
                     if socket == sys.stdin:
-                        update_dict = user_cmd_parser(sys.stdin.readline(),    \
-                                                      self.user_cmds)
+                        update_dict = user_cmd_parser                          \
+                                         (sys.stdin.readline(), self.user_cmds)
                         cmd = update_dict['cmd']
                         if cmd == LINKUP or cmd == LINKDOWN:
                             send_data = json.dumps({'cmd': cmd,
