@@ -15,6 +15,9 @@ python bfclient.py 20001 4 localhost 20000 25.0
 ```
 ```
 python bfclient.py 4115 3 localhost 4116 5.0 localhost 4118 30.0
+python bfclient.py 4116 3 localhost 4115 5.0
+python bfclient.py 4118 3 localhost 4115 30.0
+
 ```
 
 python bfclient_copy.py 20000 4 localhost 20001 25.0
