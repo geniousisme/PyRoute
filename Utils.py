@@ -14,7 +14,7 @@ BUFFSIZE = 4096
 
 localhost = socket.gethostbyname(socket.gethostname())
 
-class NotNeighborError(Exception):
+class NoNodeError(Exception):
     pass
 
 class NoInputCmdError(Exception):
