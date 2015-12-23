@@ -83,8 +83,7 @@ class BFClient(object):
         self.close_bfclient()
 
     def show_rt(self):
-        print now_time()
-        print "Distance vector list is:"
+        print now_time() + "  Distance vector list is:"
         for addr_key, node in self.node_dict.iteritems():
             if addr_key == self.me_key:
                 continue
@@ -166,29 +165,26 @@ class BFClient(object):
             min_cost, next_hop = INF, ""
             for neighbor_key, neighbor in self.get_neighbors().iteritems():
                 '''
-                # distance =
-                # direct cost to neighbor + cost from neighbor to destination
+                distance =
+                    cost to neighbor + cost from neighbor to destination
                 '''
                 if dest_addr in neighbor['costs']:
-                    dist = neighbor['direct_dist'] + neighbor['costs'][dest_addr]
-                    if dist < min_cost:
-                        min_cost = dist
+                    curr_dist =                                                \
+                        neighbor['direct_dist'] + neighbor['costs'][dest_addr]
+                    if curr_dist < min_cost:
+                        min_cost = curr_dist
                         next_hop = neighbor_key
             # set new estimated cost to node in the network
-            dest_node['cost'] = min_cost
             dest_node['link'] = next_hop
+            dest_node['cost'] = min_cost
 
     def init_rt(self):
-        pass
-
-    def client_loop(self):
-        self.start_bfclient()
         route_dict = argv_parser(sys.argv)
         self.node_dict = defaultdict(lambda: self.init_node())
         self.timeout = 3 * route_dict["timeout"]
 
         self.sock = init_socket(localhost, route_dict["port"])
-        connections = [self.sock, sys.stdin]
+        # connections = [self.sock, sys.stdin]
         self.me_key = addr_to_key(*self.sock.getsockname())
         self.node_dict[self.me_key] = self.node_generator(cost=0.0,
                                                           addr_key=self.me_key,
@@ -202,6 +198,11 @@ class BFClient(object):
                                                            direct_dist=cost)
         self.broadcast_costs()
         CountDownTimer(route_dict["timeout"], self.broadcast_costs).start()
+
+    def client_loop(self):
+        self.start_bfclient()
+        self.init_rt()
+        connections = [self.sock, sys.stdin]
 
         while self.running:
             try:
