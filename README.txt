@@ -1,8 +1,6 @@
 # PyRoute
 ### Computer Networks Programming Assignment 3: Distributed Bellman­-Ford
 
-![Hope you like it](http://imgs.xkcd.com/comics/pillow_talk.jpg)
-
 #### Program Overview
 
 PyRoute includes 3 files:
@@ -56,6 +54,7 @@ close
 ------
 
 #### Hope you enjoy PyRoute !!!
+![Hope you like it](http://imgs.xkcd.com/comics/pillow_talk.jpg)
 
 =======
 
