@@ -237,6 +237,10 @@ class BFClient(object):
                                             % (LINKUP, LINKDOWN, SHOWRT, CLOSE)
             except NoParamsForCmdError:
                     print "plz provide parameters for the command you want\n"
+            except IOError, err_msg:
+                    print err_msg
+            except OverflowError, err_msg:
+                    print err_msg
             except KeyboardInterrupt, SystemExit:
                     self.close_bfclient()
 
