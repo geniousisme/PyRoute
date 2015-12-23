@@ -62,9 +62,7 @@ class BFClient(object):
             node['is_neighbor'] = True
             # Bellman-Ford!
             self.calculate_costs()
-        except KeyError, err_msg:
-            print "error message: %s not in the nodes.\n" % err_msg
-        except NoNodeError:
+        except KeyError:
             print "Node at %s:%s is not in the nodes man!\n" % (ip, port)
 
     def link_down(self, ip, port, **kwargs):
@@ -76,7 +74,7 @@ class BFClient(object):
             node['watch_dog'].stop()
             # Bellman-Ford!
             self.calculate_costs()
-        except NoNodeError:
+        except KeyError:
             print "Node at %s:%s is not in the nodes man!\n" % (ip, port)
 
     def close(self):

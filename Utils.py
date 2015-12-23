@@ -89,7 +89,10 @@ def argv_parser(argv):
             else:
                 route_dict["neighbors"].append(neighbor_info)
         except ValueError, err_msg:
-            print "err code: %s, error message: %s\n" % err_msg
+            print err_msg
+            sys.exit(1)
+        except IndexError, err_msg:
+            print "plz provide enough arguments for the initial command!"
             sys.exit(1)
 
     return route_dict
