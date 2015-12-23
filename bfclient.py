@@ -102,7 +102,6 @@ class BFClient(object):
         node["direct_dist"] = direct_dist
         if is_neighbor:
             node['link'] = addr_key
-            # make sure update_cmds use new timer to count
             monitor = ResetTimer(
                         interval=self.timeout,
                         func_ptr=self.link_down,
@@ -161,7 +160,6 @@ class BFClient(object):
         for dest_addr, dest_node in self.node_dict.iteritems():
             if dest_addr == self.me_key:
                 continue
-            # iterate neighbors and search for min cost for destination
             min_cost, next_hop = INF, ""
             for neighbor_key, neighbor in self.get_neighbors().iteritems():
                 '''
@@ -174,7 +172,6 @@ class BFClient(object):
                     if curr_dist < min_cost:
                         min_cost = curr_dist
                         next_hop = neighbor_key
-            # set new estimated cost to node in the network
             dest_node['link'] = next_hop
             dest_node['cost'] = min_cost
 
@@ -184,7 +181,6 @@ class BFClient(object):
         self.timeout = 3 * route_dict["timeout"]
 
         self.sock = init_socket(localhost, route_dict["port"])
-        # connections = [self.sock, sys.stdin]
         self.me_key = addr_to_key(*self.sock.getsockname())
         self.node_dict[self.me_key] = self.node_generator(cost=0.0,
                                                           addr_key=self.me_key,
